@@ -25,10 +25,12 @@
     </div>
     <nav class="jump" aria-label="Sections">
       <a href="#web">The web</a>
+      <a href="#cake">Five-layer cake</a>
       <a href="#timeline">Timeline</a>
       <a href="#table">Deal table</a>
       <a href="#exposure">Who is exposed</a>
       <a href="#hva">Headline vs actual</a>
+      <a href="#revshare">% of revenue</a>
       <a href="#bis">BIS evidence</a>
       <a href="#sona">FT / Sona map</a>
       <a href="#telecom">Telecom analogue</a>
@@ -90,6 +92,20 @@
     <div class="chart" id="webChart"></div>
     <div class="tablev" id="webTable" hidden></div>
     <div class="foot" id="webFoot"></div>
+  </section>
+
+  <section class="card" id="cake">
+    <header>
+      <div>
+        <h2>The five-layer cake: money goes up, purchases come back down</h2>
+        <p class="desc">Jensen Huang&rsquo;s five layers of AI: energy, chips, infrastructure, models, applications. Capital providers such as SoftBank and private credit sit above the cake. Investments, loans and backstops (right) mostly climb the cake; purchase commitments (left) mostly come back down. Where both arrows join the same two layers, the money goes round in a loop.</p>
+      </div>
+      <div class="ctl"><button class="btn small" type="button" data-tablev="cake">Table view</button></div>
+    </header>
+    <div class="legend" id="cakeLegend"></div>
+    <div class="chart" id="cakeChart"></div>
+    <div class="tablev" id="cakeTable" hidden></div>
+    <div class="foot" id="cakeFoot"></div>
   </section>
 
   <section class="card" id="timeline">
@@ -165,6 +181,23 @@
       <div class="tablev" id="hvaTable" hidden></div>
     </section>
   </div>
+
+  <section class="card" id="revshare">
+    <header>
+      <div>
+        <h2>Deal size as a % of annual revenue</h2>
+        <p class="desc" id="rsDesc">Each flow&rsquo;s headline value against the annual revenue of the company paying it or receiving it. Above 100%, one deal is bigger than a full year of that company&rsquo;s sales.</p>
+      </div>
+      <div class="ctl">
+        <span class="seg" role="group" aria-label="Whose revenue"><button type="button" data-rs="from" aria-pressed="true">Payer&rsquo;s revenue</button><button type="button" data-rs="to" aria-pressed="false">Recipient&rsquo;s revenue</button></span>
+        <button class="btn small" type="button" data-tablev="revshare">Table view</button>
+      </div>
+    </header>
+    <div class="legend" id="rsLegend"></div>
+    <div class="chart" id="rsChart"></div>
+    <div class="tablev" id="rsTable" hidden></div>
+    <div class="foot" id="rsFoot"></div>
+  </section>
 
   <section class="card" id="bis">
     <header>

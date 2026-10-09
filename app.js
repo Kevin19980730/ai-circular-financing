@@ -107,9 +107,9 @@
   const SUPERSEDED = /superseded|cancel|stall|lapsed|terminat|withdr|abandon|replaced|collapsed|scrapped/i;
 
   const S = {
-    data: null, deals: [], legs: [], allLegs: [], roles: new Map(),
+    data: null, deals: [], legs: [], allLegs: [], roles: new Map(), layerMap: new Map(),
     f: { period: 'all', from: '2023-01-01', to: '', company: '', g: { g1: true, g2: true, g3: true }, cat: '', live: false, firm: false },
-    tl: { m: 'usd', c: 'q' }, sort: { key: 'date', dir: -1 }, q: '',
+    tl: { m: 'usd', c: 'q' }, rs: 'from', sort: { key: 'date', dir: -1 }, q: '',
   };
   const roleOf = n => S.roles.get(n) || 'other';
   const isSuperseded = d => SUPERSEDED.test(d.status || '');
@@ -428,6 +428,206 @@
     box.appendChild(h('div', { class: 'tbl-wrap' }, tbl));
   }
 
+  // --------------------------------------------------- five-layer cake --
+  const LAYERS = [
+    { id: 'capital', label: 'Capital', sub: 'SoftBank, MGX, private credit \u2014 above the cake' },
+    { id: 'applications', label: 'Applications', sub: 'AI products, robots, data tools' },
+    { id: 'models', label: 'Models', sub: 'AI labs' },
+    { id: 'infrastructure', label: 'Infrastructure', sub: 'hyperscalers, neoclouds, data centres' },
+    { id: 'chips', label: 'Chips', sub: 'GPUs, custom silicon, memory, networking' },
+    { id: 'energy', label: 'Energy', sub: 'power and powered sites' },
+  ];
+  const LAYER_IDX = Object.fromEntries(LAYERS.map((l, i) => [l.id, i]));
+  const LAYER_LABEL = Object.fromEntries(LAYERS.map(l => [l.id, l.label]));
+  const layerOf = n => (S.layerMap.get(n) in LAYER_IDX ? S.layerMap.get(n) : 'applications');
+
+  function cakeModel() {
+    const L = {};
+    LAYERS.forEach(l => { L[l.id] = { out: 0, in: 0, within: 0, withinN: 0, cos: new Map() }; });
+    const A = new Map();
+    for (const l of S.legs) {
+      const a = layerOf(l.from), b = layerOf(l.to), v = l.usd || 0;
+      L[a].cos.set(l.from, (L[a].cos.get(l.from) || 0) + v + 0.001);
+      L[b].cos.set(l.to, (L[b].cos.get(l.to) || 0) + v + 0.001);
+      if (a === b) { L[a].within += v; L[a].withinN++; continue; }
+      L[a].out += v; L[b].in += v;
+      const k = a + '|' + b + '|' + l.g;
+      let e = A.get(k);
+      if (!e) { e = { a: a, b: b, g: l.g, usd: 0, nd: 0, legs: [] }; A.set(k, e); }
+      if (l.usd != null) e.usd += l.usd; else e.nd++;
+      e.legs.push(l);
+    }
+    return { L: L, arrows: Array.from(A.values()) };
+  }
+
+  function renderCake() {
+    const host = $('#cakeChart');
+    if (!withRetry(renderCake, host)) return;
+    const W = host.clientWidth;
+    host.textContent = '';
+    const lg = $('#cakeLegend');
+    lg.textContent = '';
+    GROUPS.forEach(g => { if (S.f.g[g.id]) lg.appendChild(h('span', null, h('span', { class: 'key-line bg-' + g.id }), g.long + (g.id === 'g2' ? ' (left)' : ' (right)'))); });
+    lg.appendChild(h('span', { text: 'Arrow width = disclosed $ value' }));
+    const M = cakeModel();
+    renderCakeTable(M);
+    if (!S.legs.length) { host.appendChild(h('div', { class: 'empty', text: 'No deals match these filters.' })); $('#cakeFoot').textContent = ''; return; }
+
+    const narrow = W < 720;
+    const side = narrow ? Math.max(64, Math.round(W * 0.17)) : Math.min(250, Math.round(W * 0.24));
+    const bx0 = side, bx1 = W - side;
+    const top = 28, bandH = narrow ? 72 : 80, gap = 10;
+    const yC = i => top + i * (bandH + gap) + bandH / 2;
+    const H = top + LAYERS.length * (bandH + gap) + 4;
+    const root = svg('svg', { width: W, height: H, role: 'img', 'aria-label': 'Circular flows between the five layers of AI' }, host);
+    const hd1 = svg('text', { class: 'lbl', x: side / 2, y: 16, 'text-anchor': 'middle' }, root);
+    hd1.textContent = narrow ? 'Purchases' : 'Purchases (compute, chips, cloud)';
+    const hd2 = svg('text', { class: 'lbl', x: W - side / 2, y: 16, 'text-anchor': 'middle' }, root);
+    hd2.textContent = narrow ? 'Capital' : 'Investment, loans & backstops';
+
+    // bands
+    const charW = 6.4;
+    LAYERS.forEach((ly, i) => {
+      const y0 = yC(i) - bandH / 2, st = M.L[ly.id];
+      svg('rect', { x: bx0, y: y0, width: bx1 - bx0, height: bandH, rx: 10, fill: ly.id === 'capital' ? 'var(--surface)' : 'var(--surface-2)', stroke: 'var(--grid)', 'stroke-width': 1 }, root);
+      const t1 = svg('text', { class: 'lbl-strong', x: bx0 + 12, y: y0 + 20 }, root);
+      t1.textContent = ly.label;
+      const flowTxt = (st.out || st.in) ? 'out ' + fmtBn(st.out) + ' \u00b7 in ' + fmtBn(st.in) : '';
+      const t2 = svg('text', { class: 'val', x: bx1 - 12, y: y0 + 20, 'text-anchor': 'end' }, root);
+      t2.textContent = flowTxt;
+      const t3 = svg('text', { class: 'tick', x: bx0 + 12, y: y0 + 37 }, root);
+      t3.textContent = ly.sub;
+      if (st.within > 0) {
+        const t4 = svg('text', { class: 'tick', x: bx1 - 12, y: y0 + 37, 'text-anchor': 'end' }, root);
+        t4.textContent = '\u21ba ' + fmtBn(st.within) + ' within the layer';
+      }
+      // companies, biggest first, as many as fit
+      const cos = Array.from(st.cos.entries()).sort((a, b) => b[1] - a[1]).map(c => c[0]);
+      const room = (bx1 - bx0 - 24) / charW;
+      let txt = '', shown = 0;
+      for (const c of cos) {
+        const next = txt ? txt + ' \u00b7 ' + c : c;
+        if (next.length + 8 > room) break;
+        txt = next; shown++;
+      }
+      if (cos.length > shown) txt += (txt ? '  ' : '') + '+' + (cos.length - shown);
+      const t5 = svg('text', { class: 'lbl', x: bx0 + 12, y: y0 + 58 }, root);
+      t5.textContent = txt || 'no flows in this selection';
+      if (!txt) t5.setAttribute('class', 'tick');
+    });
+
+    // arrows: purchases on the left, capital (equity, credit, backstops, warrants) on the right
+    const arrows = M.arrows.filter(e => S.f.g[e.g]);
+    const maxU = Math.max.apply(null, arrows.map(e => e.usd).concat([1]));
+    const wOf = e => (e.usd > 0 ? 1.5 + 11 * Math.sqrt(e.usd / maxU) : 1.2);
+    const sideOf = e => (e.g === 'g2' ? 'L' : 'R');
+    // spread endpoints vertically within each band edge
+    const ends = {};
+    arrows.forEach(e => {
+      [['a', e.a], ['b', e.b]].forEach(([role, ly]) => {
+        const k = sideOf(e) + ly;
+        (ends[k] = ends[k] || []).push({ e: e, role: role, other: LAYER_IDX[role === 'a' ? e.b : e.a] });
+      });
+    });
+    Object.values(ends).forEach(list => {
+      list.sort((p, q) => p.other - q.other);
+      const n = list.length, step = Math.min(11, (bandH - 26) / Math.max(1, n));
+      list.forEach((p, j) => { p.e['y' + p.role] = (j - (n - 1) / 2) * step; });
+    });
+    // lane distance grows with the number of layers crossed
+    const lanes = {};
+    arrows.slice().sort((p, q) => b2(p) - b2(q) || q.usd - p.usd).forEach(e => {
+      const k = sideOf(e) + Math.abs(LAYER_IDX[e.a] - LAYER_IDX[e.b]);
+      lanes[k] = (lanes[k] || 0) + 1;
+      e.lane = lanes[k] - 1;
+    });
+    function b2(e) { return Math.abs(LAYER_IDX[e.a] - LAYER_IDX[e.b]); }
+    const gArr = svg('g', null, root), gHit = svg('g', null, root);
+    const labelled = { L: 0, R: 0 }, placed = [];
+    arrows.sort((p, q) => q.usd - p.usd).forEach(e => {
+      const s = sideOf(e), ia = LAYER_IDX[e.a], ib = LAYER_IDX[e.b];
+      const span = Math.abs(ia - ib);
+      const d = Math.min(side - 12, 16 + 26 * (span - 1) + 9 * e.lane + (narrow ? 0 : 8));
+      const x0 = s === 'L' ? bx0 : bx1, dir = s === 'L' ? -1 : 1;
+      const ya = yC(ia) + e.ya, yb = yC(ib) + e.yb;
+      const w = wOf(e), al = Math.max(7, w + 4);
+      const xEnd = x0 + dir * (al - 1);
+      const path = 'M' + x0 + ',' + ya.toFixed(1) + ' C' + (x0 + dir * d) + ',' + ya.toFixed(1) + ' ' + (x0 + dir * d) + ',' + yb.toFixed(1) + ' ' + xEnd + ',' + yb.toFixed(1);
+      const g = svg('g', { class: 'cake-arrow' + (e.usd > 0 ? '' : ' nd') }, gArr);
+      svg('path', { d: path, fill: 'none', class: 's-' + e.g, 'stroke-width': w.toFixed(2), 'stroke-linecap': 'butt' }, g);
+      const hw = Math.max(4, w * 0.8 + 2.5);
+      svg('path', { class: 'f-' + e.g, d: 'M' + x0 + ',' + yb.toFixed(1) + ' L' + (x0 + dir * al) + ',' + (yb - hw).toFixed(1) + ' L' + (x0 + dir * al) + ',' + (yb + hw).toFixed(1) + 'Z' }, g);
+      if (e.usd > 0 && labelled[s] < (narrow ? 2 : 6) && e.usd >= maxU * 0.03) {
+        // label just outside the arrow's outermost point; skip if it would collide
+        const txt = fmtBn(e.usd), tw = txt.length * 6.6 + 4;
+        const apex = x0 + dir * (0.75 * d + w / 2 + 5);
+        const cands = [(ya + yb) / 2, (ya + yb) / 2 - 14, (ya + yb) / 2 + 14];
+        for (const cy of cands) {
+          const rx0 = s === 'L' ? apex - tw : apex, box = [rx0, cy - 10, rx0 + tw, cy + 4];
+          if (box[0] < 0 || box[2] > W) continue;
+          if (placed.some(p => box[0] < p[2] && p[0] < box[2] && box[1] < p[3] && p[1] < box[3])) continue;
+          placed.push(box);
+          labelled[s]++;
+          const t = svg('text', { class: 'val', x: apex.toFixed(1), y: (cy).toFixed(1), 'text-anchor': s === 'L' ? 'end' : 'start' }, g);
+          t.textContent = txt;
+          break;
+        }
+      }
+      const hit = svg('path', { d: path, fill: 'none', stroke: 'transparent', 'stroke-width': Math.max(12, w + 8), tabindex: 0 }, gHit);
+      const on = evt => {
+        root.classList.add('dim'); g.classList.add('hl');
+        showTip(evt, t => {
+          t.appendChild(h('div', { class: 't-head', text: LAYER_LABEL[e.a] + ' \u2192 ' + LAYER_LABEL[e.b] }));
+          tipRow(t, GROUP[e.g].long, e.usd > 0 ? fmtBn(e.usd) + (e.nd ? ' + n/d' : '') : 'not disclosed', 'bg-' + e.g);
+          const ul = h('ul');
+          e.legs.slice().sort((p, q) => (q.usd || 0) - (p.usd || 0)).slice(0, 6)
+            .forEach(l => ul.appendChild(h('li', { text: l.from + ' \u2192 ' + l.to + ' \u00b7 ' + (TYPE_LABEL[l.type] || l.type) + ' ' + fmtBn(l.usd) + ' (' + fmtMonth(l.deal.date) + ')' })));
+          t.appendChild(ul);
+          if (e.legs.length > 6) t.appendChild(h('div', { class: 't-sub', text: '+' + (e.legs.length - 6) + ' more flows' }));
+        });
+      };
+      const off = () => { root.classList.remove('dim'); g.classList.remove('hl'); hideTip(); };
+      hit.addEventListener('pointermove', on); hit.addEventListener('focus', on);
+      hit.addEventListener('pointerleave', off); hit.addEventListener('blur', off);
+    });
+
+    // loops: capital one way and purchases the other between the same two layers
+    const val = (a, b, gs) => arrows.filter(e => e.a === a && e.b === b && gs.indexOf(e.g) >= 0).reduce((s, e) => s + e.usd, 0);
+    const loops = [];
+    for (let i = 0; i < LAYERS.length; i++) for (let j = 0; j < LAYERS.length; j++) {
+      if (i === j) continue;
+      const a = LAYERS[i].id, b = LAYERS[j].id;
+      const cap = val(a, b, ['g1', 'g3']), back = val(b, a, ['g2']);
+      if (cap > 0 && back > 0) loops.push({ a: a, b: b, cap: cap, back: back });
+    }
+    loops.sort((p, q) => Math.min(q.cap, q.back) - Math.min(p.cap, p.back));
+    $('#cakeFoot').textContent = loops.length
+      ? 'Biggest loops: ' + loops.slice(0, 3).map(l => LAYER_LABEL[l.a] + ' put ' + fmtBn(l.cap) + ' into ' + LAYER_LABEL[l.b] + ', which committed ' + fmtBn(l.back) + ' of purchases back').join('; ') + '. Disclosed values only; a deal\u2019s two legs both count.'
+      : 'No two-way loops between layers in this selection.';
+  }
+
+  function renderCakeTable(M) {
+    const box = $('#cakeTable');
+    box.textContent = '';
+    const tbl = h('table', { class: 'data' });
+    tbl.appendChild(h('thead', null, h('tr', null, h('th', { text: 'From layer' }), h('th', { text: 'To layer' }), h('th', { text: 'Flow type' }),
+      h('th', { class: 'num', text: 'Disclosed $' }), h('th', { class: 'num', text: 'Flows' }), h('th', { text: 'Largest' }))));
+    const tb = h('tbody');
+    M.arrows.filter(e => S.f.g[e.g]).sort((p, q) => q.usd - p.usd).forEach(e => {
+      const big = e.legs.slice().sort((p, q) => (q.usd || 0) - (p.usd || 0))[0];
+      tb.appendChild(h('tr', null, h('td', { text: LAYER_LABEL[e.a] }), h('td', { text: LAYER_LABEL[e.b] }),
+        h('td', null, h('span', { class: 'chip' }, h('span', { class: 'key-rect bg-' + e.g }), GROUP[e.g].label)),
+        h('td', { class: 'num', text: e.usd > 0 ? fmtBn(e.usd) : 'n/d' }), h('td', { class: 'num', text: String(e.legs.length) }),
+        h('td', { text: big ? big.from + ' \u2192 ' + big.to + ' (' + fmtBn(big.usd) + ')' : '' })));
+    });
+    LAYERS.forEach(l => {
+      if (M.L[l.id].withinN) tb.appendChild(h('tr', null, h('td', { text: l.label }), h('td', { text: l.label + ' (within)' }), h('td', { text: 'all types' }),
+        h('td', { class: 'num', text: fmtBn(M.L[l.id].within) }), h('td', { class: 'num', text: String(M.L[l.id].withinN) }), h('td', { text: '' })));
+    });
+    tbl.appendChild(tb);
+    box.appendChild(h('div', { class: 'tbl-wrap' }, tbl));
+  }
+
   // ---------------------------------------------------------- timeline --
   function qIndex(s) { return (+s.slice(0, 4)) * 4 + Math.floor((+s.slice(5, 7) - 1) / 3); }
   function qLabel(q, short) { const y = Math.floor(q / 4), k = q % 4 + 1; return short ? 'Q' + k + " '" + String(y).slice(2) : 'Q' + k + ' ' + y; }
@@ -630,6 +830,103 @@
     box.appendChild(h('div', { class: 'tbl-wrap' }, tbl));
   }
 
+  // ------------------------------------------ deal size vs revenue ----
+  function revFor(company, date) {
+    // revenue of the fiscal year containing the deal date; latest reported year if that one isn't out yet
+    const rows = (S.data.revenue || {})[company];
+    if (!rows || !rows.length) return null;
+    for (const r of rows) if (r[0] >= date) return { fye: r[0], v: r[1], basis: r[2] };
+    const r = rows[rows.length - 1];
+    return { fye: r[0], v: r[1], basis: r[2] };
+  }
+  const fyLabel = fye => 'FY' + fye.slice(0, 4) + (fye.slice(5, 7) === '12' ? '' : ' (to ' + MONTHS[+fye.slice(5, 7) - 1] + ')');
+  function fmtPctBig(v) {
+    if (v == null || !isFinite(v)) return 'n/a';
+    if (v >= 100) return Math.round(v).toLocaleString('en-US') + '%';
+    if (v >= 10) return Math.round(v) + '%';
+    return trimZeros(v.toFixed(1)) + '%';
+  }
+  function legPct(l, who) {
+    if (l.usd == null) return null;
+    const r = revFor(who === 'from' ? l.from : l.to, l.deal.date);
+    return r && r.v > 0 ? { pct: 100 * l.usd / r.v, rev: r } : null;
+  }
+
+  function renderRevShare() {
+    const host = $('#rsChart');
+    if (!withRetry(renderRevShare, host)) return;
+    const W = host.clientWidth;
+    host.textContent = '';
+    const who = S.rs;
+    const lg = $('#rsLegend');
+    lg.textContent = '';
+    GROUPS.forEach(g => { if (S.f.g[g.id]) lg.appendChild(h('span', null, h('span', { class: 'key-rect bg-' + g.id }), g.label)); });
+    lg.appendChild(h('span', { text: 'Log scale \u00b7 the darker line marks 100% = one full year of revenue' }));
+    const all = S.legs.map(l => Object.assign({ l: l }, legPct(l, who) || {})).filter(x => x.pct != null);
+    const rows = all.slice().sort((a, b) => b.pct - a.pct).slice(0, W < 560 ? 10 : 18);
+    renderRsTable(all, who);
+    const missing = new Set(S.legs.filter(l => l.usd != null && !legPct(l, who)).map(l => (who === 'from' ? l.from : l.to)));
+    $('#rsFoot').textContent = 'Revenue = the company\u2019s fiscal year in which the deal was announced (the latest reported year for deals in a year not yet reported). Public companies: FactSet. OpenAI, Anthropic and SpaceX/xAI: figures from their IPO filings and investor disclosures as reported in the press. Multi-year contracts are compared with a single year of revenue. ' +
+      (missing.size ? 'No revenue on file (left out): ' + Array.from(missing).sort().join(', ') + '.' : '');
+    if (!rows.length) { host.appendChild(h('div', { class: 'empty', text: 'No disclosed flows with revenue on file in this selection.' })); return; }
+    const narrow = W < 640;
+    const labelW = narrow ? 0 : Math.min(330, Math.round(W * 0.4));
+    const left = labelW + 8, right = 64, rowH = narrow ? 44 : 28, bh = 14, top = 22;
+    const lo = 1, hi = Math.pow(10, Math.ceil(Math.log10(Math.max(rows[0].pct, 200))));
+    const x = v => left + (W - left - right) * (Math.log10(Math.max(v, lo)) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo));
+    const H = top + rows.length * rowH + 6;
+    const root = svg('svg', { width: W, height: H, role: 'img', 'aria-label': 'Deal size as a percentage of annual revenue' }, host);
+    for (let v = lo; v <= hi; v *= 10) {
+      svg('line', { class: v === 100 ? 'baseline' : 'gridline', x1: x(v), x2: x(v), y1: top - 4, y2: H, 'stroke-width': v === 100 ? 1.5 : 1, style: v === 100 ? 'stroke: var(--ink-2)' : null }, root);
+      const t = svg('text', { class: 'tick', x: x(v), y: 12, 'text-anchor': 'middle' }, root);
+      t.textContent = v.toLocaleString('en-US') + '%';
+    }
+    rows.forEach((r, i) => {
+      const l = r.l, yc = top + i * rowH + (narrow ? 30 : rowH / 2);
+      const company = who === 'from' ? l.from : l.to;
+      const name = l.from + ' \u2192 ' + l.to + ' \u00b7 ' + fmtBn(l.usd);
+      const lab = svg('text', { class: 'lbl', x: narrow ? left : labelW, y: narrow ? yc - 13 : yc + 4, 'text-anchor': narrow ? 'start' : 'end' }, root);
+      lab.textContent = name.length > 44 && !narrow ? name.slice(0, 43) + '\u2026' : name;
+      const w = Math.max(1, x(r.pct) - left);
+      const p = svg('path', { class: 'f-' + l.g, d: hbarPath(left, yc - bh / 2, w, bh, 4, true) }, root);
+      const vt = svg('text', { class: 'val', x: left + w + 6, y: yc + 4 }, root);
+      vt.textContent = fmtPctBig(r.pct);
+      const hit = svg('rect', { class: 'hit', x: 0, y: yc - rowH / 2, width: W, height: rowH, tabindex: 0 }, root);
+      const on = evt => {
+        p.classList.add('mark-hover');
+        showTip(evt, t => {
+          t.appendChild(h('div', { class: 't-head', text: l.deal.deal }));
+          tipRow(t, l.from + ' \u2192 ' + l.to + ' (' + (TYPE_LABEL[l.type] || l.type) + ')', fmtBn(l.usd), 'bg-' + l.g);
+          tipRow(t, company + ' revenue, ' + fyLabel(r.rev.fye), fmtBn(r.rev.v));
+          tipRow(t, 'Deal as % of that revenue', fmtPctBig(r.pct));
+          const other = legPct(l, who === 'from' ? 'to' : 'from');
+          if (other) tipRow(t, (who === 'from' ? l.to : l.from) + ' (other side)', fmtPctBig(other.pct));
+          t.appendChild(h('div', { class: 't-sub', text: 'Announced ' + fmtDate(l.deal.date) + (l.deal.headline_note ? ' \u00b7 ' + l.deal.headline_note : '') }));
+        });
+      };
+      const off = () => { p.classList.remove('mark-hover'); hideTip(); };
+      hit.addEventListener('pointermove', on); hit.addEventListener('focus', on);
+      hit.addEventListener('pointerleave', off); hit.addEventListener('blur', off);
+    });
+  }
+  function renderRsTable(all, who) {
+    const box = $('#rsTable');
+    box.textContent = '';
+    const tbl = h('table', { class: 'data' });
+    tbl.appendChild(h('thead', null, h('tr', null, h('th', { text: 'Announced' }), h('th', { text: 'Flow' }), h('th', { class: 'num', text: '$' }),
+      h('th', { text: 'Payer revenue' }), h('th', { class: 'num', text: '% of payer' }), h('th', { text: 'Recipient revenue' }), h('th', { class: 'num', text: '% of recipient' }))));
+    const tb = h('tbody');
+    all.slice().sort((a, b) => b.pct - a.pct).forEach(r => {
+      const l = r.l, pf = legPct(l, 'from'), pt = legPct(l, 'to');
+      tb.appendChild(h('tr', null, h('td', { class: 'date', text: fmtDate(l.deal.date) }), h('td', { text: l.from + ' \u2192 ' + l.to + ' (' + (TYPE_LABEL[l.type] || l.type) + ')' }),
+        h('td', { class: 'num', text: fmtBn(l.usd) }),
+        h('td', { text: pf ? fmtBn(pf.rev.v) + ' ' + fyLabel(pf.rev.fye) : 'n/a' }), h('td', { class: 'num', text: pf ? fmtPctBig(pf.pct) : 'n/a' }),
+        h('td', { text: pt ? fmtBn(pt.rev.v) + ' ' + fyLabel(pt.rev.fye) : 'n/a' }), h('td', { class: 'num', text: pt ? fmtPctBig(pt.pct) : 'n/a' })));
+    });
+    tbl.appendChild(tb);
+    box.appendChild(h('div', { class: 'tbl-wrap' }, tbl));
+  }
+
   // --------------------------------------------- headline vs actual ----
   function hvaRows() {
     return (S.data.hva || []).filter(r =>
@@ -707,6 +1004,13 @@
     box.appendChild(h('div', { class: 'tbl-wrap' }, tbl));
   }
 
+  function revNote(l, d) {
+    if (l.usd_bn == null) return null;
+    const x = { from: l.from, to: l.to, usd: l.usd_bn, deal: d };
+    const parts = [['from', l.from], ['to', l.to]].map(([w, n]) => { const p = legPct(x, w); return p ? n + ' ' + fmtPctBig(p.pct) : null; }).filter(Boolean);
+    return parts.length ? h('span', { class: 'deal-note', title: 'Flow as % of annual revenue (fiscal year of the deal)', text: '= ' + parts.join(' \u00b7 ') + ' of revenue' }) : null;
+  }
+
   // -------------------------------------------------------- deal table --
   function renderTable() {
     const tbl = $('#dealTable');
@@ -747,6 +1051,7 @@
         h('span', { class: 'who', text: l.from + ' \u2192 ' + l.to }),
         h('span', { class: 'chip' }, h('span', { class: 'key-rect bg-' + groupOf(l.type) }), TYPE_LABEL[l.type] || l.type),
         h('span', { class: 'amt', text: fmtBn(l.usd_bn) }),
+        revNote(l, d),
         l.note ? h('span', { class: 'deal-note', text: l.note }) : null));
       tb.appendChild(h('tr', { class: isSuperseded(d) ? 'superseded' : null },
         h('td', { class: 'date', text: fmtDate(d.date) }),
@@ -1100,8 +1405,9 @@
       rerender();
     });
     $$('[data-tl-m]').forEach(b => b.addEventListener('click', () => { S.tl.m = b.dataset.tlM; $$('[data-tl-m]').forEach(x => x.setAttribute('aria-pressed', x === b)); renderTimeline(); }));
+    $$('[data-rs]').forEach(b => b.addEventListener('click', () => { S.rs = b.dataset.rs; $$('[data-rs]').forEach(x => x.setAttribute('aria-pressed', x === b)); renderRevShare(); }));
     $$('[data-tl-c]').forEach(b => b.addEventListener('click', () => { S.tl.c = b.dataset.tlC; $$('[data-tl-c]').forEach(x => x.setAttribute('aria-pressed', x === b)); renderTimeline(); }));
-    const TV = { web: '#webTable', timeline: '#tlTable', exposure: '#exTable', hva: '#hvaTable', bis: '#bisTable', telecom: '#ntTable' };
+    const TV = { web: '#webTable', cake: '#cakeTable', revshare: '#rsTable', timeline: '#tlTable', exposure: '#exTable', hva: '#hvaTable', bis: '#bisTable', telecom: '#ntTable' };
     $$('[data-tablev]').forEach(b => b.addEventListener('click', () => {
       const box = $(TV[b.dataset.tablev]);
       box.hidden = !box.hidden;
@@ -1129,7 +1435,7 @@
 
   function renderAll() {
     if (!S.data) return;
-    renderKpis(); renderWeb(); renderTimeline(); renderTable(); renderExposure(); renderHva(); renderBis(); renderSona(); renderNortel();
+    renderKpis(); renderWeb(); renderCake(); renderTimeline(); renderTable(); renderExposure(); renderHva(); renderRevShare(); renderBis(); renderSona(); renderNortel();
   }
   function rerender() {
     hideTip();
@@ -1142,6 +1448,7 @@
     const res = await fetch(STATIC ? 'data.json' : '/api/data', { cache: 'no-store' });
     S.data = await res.json();
     S.roles = new Map((S.data.entities || []).map(e => [e.name, e.role]));
+    S.layerMap = new Map((S.data.entities || []).map(e => [e.name, e.layer]));
     (S.data.hva || []).forEach(r => { r.parties = r.parties || []; });
     $('#asof').textContent = 'Data to ' + fmtDate(S.data.meta.last_date || '') + ' \u00b7 today ' + fmtDate(S.data.meta.today);
     fillCompanySelect();

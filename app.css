@@ -153,6 +153,11 @@ svg.dim .web-edge { opacity: 0.08; }
 svg.dim .web-edge.hl { opacity: 0.95; }
 svg.dim .web-node { opacity: 0.25; }
 svg.dim .web-node.hl { opacity: 1; }
+.cake-arrow { opacity: 0.8; transition: opacity 0.12s; }
+.cake-arrow.nd { opacity: 0.45; }
+.cake-arrow text { paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+svg.dim .cake-arrow { opacity: 0.08; }
+svg.dim .cake-arrow.hl { opacity: 1; }
 .ring-guide { fill: none; stroke: var(--grid); stroke-width: 1; }
 .ring-label { fill: var(--muted); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
 
