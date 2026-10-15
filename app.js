@@ -7,6 +7,7 @@
   const NS = 'http://www.w3.org/2000/svg';
   // true on the GitHub Pages copy (export_site.py): data comes from data.json, no editing
   const STATIC = !!window.ACF_STATIC;
+  const READONLY = STATIC || !!window.ACF_HOSTED;  // GitHub Pages build or Render copy
 
   function svg(tag, attrs, parent) {
     const e = document.createElementNS(NS, tag);
@@ -1352,8 +1353,8 @@
         a('https://www.ft.com/content/9a6947bf-9d4e-4489-80b9-2178ea657a67', '\u201cNvidia\u2019s $200bn balance sheet-as-a-service\u201d (26 Aug 2026)'), '.'),
       li('Per-deal sources (' + nSrc.size + ' sites): company press releases and SEC filings first, then Reuters, Bloomberg, CNBC, the FT, the WSJ and The Information. Each row links its own.')));
     box.appendChild(h('h3', { text: 'Keeping it current' }));
-    if (STATIC) {
-      box.appendChild(p('This website is rebuilt every day from the local deal table; new deals are reviewed by hand before they are added. Last build: ' + fmtDate(S.data.meta.today) + '.'));
+    if (READONLY) {
+      box.appendChild(p('This website is rebuilt every day from the local deal table; new deals are reviewed by hand before they are added. Last build: ' + fmtDate(S.data.meta.published || S.data.meta.today) + '.'));
       box.appendChild(h('p', { class: 'foot', text: 'Not investment advice.' }));
       return;
     }
@@ -1459,7 +1460,7 @@
     $('#main').classList.remove('loading');
   }
 
-  if (STATIC) $('#addDealBtn').hidden = true;
+  if (READONLY) $('#addDealBtn').hidden = true;
   bindControls();
   load(false).catch(err => {
     $('#kpis').appendChild(h('div', { class: 'tile' }, h('div', { class: 'label', text: 'Could not load data' }), h('div', { class: 'note', text: String(err) })));

@@ -1,0 +1,15 @@
+{
+ "at": "2026-10-15",
+ "sig": {
+  "data/circular_deals.csv": "28509df430e7",
+  "data/entities.csv": "1ae397045478",
+  "data/headline_vs_actual.csv": "de34b6ab402c",
+  "data/revenue.csv": "ab4a26a61b86",
+  "data/sources/bis_bulletin137_data.xlsx": "9c2942b2bb72",
+  "data/sources/bis_investment_split.json": "81d3ea7add53",
+  "data/sources/nortel_market_cap.json": "95ba244a5f0d",
+  "data/sources/sona_openai_anthropic_deals.json": "90d3d373a976",
+  "data/sources/sona_radial_network.json": "2453d67e9b00",
+  "data/sources/sona_revenue_dependence.json": "ad2126646fac"
+ }
+}
