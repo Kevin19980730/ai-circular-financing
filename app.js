@@ -8,6 +8,7 @@
   // true on the GitHub Pages copy (export_site.py): data comes from data.json, no editing
   const STATIC = !!window.ACF_STATIC;
   const READONLY = STATIC || !!window.ACF_HOSTED;  // GitHub Pages build or Render copy
+  const BASE = window.ACF_BASE || '';  // '/circular' when mounted inside the AI Adoption Monitor
 
   function svg(tag, attrs, parent) {
     const e = document.createElementNS(NS, tag);
@@ -1266,7 +1267,7 @@
     if (items.length > 25) box.appendChild(h('div', { class: 'foot', text: '+' + (items.length - 25) + ' more' }));
   }
   async function dismissCandidate(id) {
-    await fetch('/api/candidates/' + encodeURIComponent(id) + '/dismiss', { method: 'POST' });
+    await fetch(BASE + '/api/candidates/' + encodeURIComponent(id) + '/dismiss', { method: 'POST' });
     await load(true);
   }
 
@@ -1312,7 +1313,7 @@
       confidence: f.elements.confidence.value, sources: f.elements.sources.value, legs: legs,
       candidate_id: currentCandidate ? currentCandidate.id : null,
     };
-    const res = await fetch('/api/deals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const res = await fetch(BASE + '/api/deals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const out = await res.json().catch(() => ({ ok: false, errors: ['server error'] }));
     if (!out.ok) { $('#formErrors').textContent = (out.errors || ['could not save']).join('; '); return; }
     dlg.close();
@@ -1428,6 +1429,7 @@
     if (window.matchMedia) window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', renderAll);
     let rt = null, lastW = window.innerWidth;
     window.addEventListener('resize', () => {
+      if (window.innerWidth < 50) return;  // frame on a hidden monitor tab
       if (Math.abs(window.innerWidth - lastW) < 8) return;
       lastW = window.innerWidth;
       clearTimeout(rt); rt = setTimeout(renderAll, 160);
@@ -1446,7 +1448,7 @@
 
   async function load(keepFrame) {
     if (keepFrame) $('#main').classList.add('loading');
-    const res = await fetch(STATIC ? 'data.json' : '/api/data', { cache: 'no-store' });
+    const res = await fetch(STATIC ? 'data.json' : BASE + '/api/data', { cache: 'no-store' });
     S.data = await res.json();
     S.roles = new Map((S.data.entities || []).map(e => [e.name, e.role]));
     S.layerMap = new Map((S.data.entities || []).map(e => [e.name, e.layer]));
@@ -1461,6 +1463,8 @@
   }
 
   if (READONLY) $('#addDealBtn').hidden = true;
+  // the monitor calls this when its Theme button is pressed
+  window.ACF_setTheme = t => { document.documentElement.setAttribute('data-theme', t); renderAll(); };
   bindControls();
   load(false).catch(err => {
     $('#kpis').appendChild(h('div', { class: 'tile' }, h('div', { class: 'label', text: 'Could not load data' }), h('div', { class: 'note', text: String(err) })));

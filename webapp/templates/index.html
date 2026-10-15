@@ -8,6 +8,12 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
 <script>
   try { var t = localStorage.getItem('acf-theme'); if (t) document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+  window.ACF_BASE = "{{ request.script_root }}";
+  {% if embed %}// framed by the AI Adoption Monitor: its header and theme rule
+  window.ACF_EMBED = true;
+  document.documentElement.classList.add('embed');
+  try { var pt = parent.document.documentElement.getAttribute('data-theme'); if (pt) document.documentElement.setAttribute('data-theme', pt); } catch (e) {}
+  {% endif %}
 </script>
 </head>
 <body>
@@ -132,8 +138,8 @@
         <p class="desc">Every tracked deal with its flows. Values are headline amounts as announced (the maximum where a deal says &ldquo;up to&rdquo;); n/d = not disclosed.</p>
       </div>
       <div class="ctl">
-        <a class="btn small" href="/export.xlsx">Download Excel</a>
-        <a class="btn small" href="/export.csv">Download CSV</a>
+        <a class="btn small" href="{{ request.script_root }}/export.xlsx">Download Excel</a>
+        <a class="btn small" href="{{ request.script_root }}/export.csv">Download CSV</a>
         <button class="btn small primary" type="button" id="addDealBtn">Add deal</button>
       </div>
     </header>

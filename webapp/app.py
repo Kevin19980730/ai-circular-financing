@@ -277,7 +277,7 @@ def _read_only():
 
 @app.route("/")
 def index():
-    return render_template("index.html", hosted=HOSTED)
+    return render_template("index.html", hosted=HOSTED, embed=request.args.get("embed") == "1")
 
 
 @app.route("/api/data")
