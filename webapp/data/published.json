@@ -1,8 +1,8 @@
 {
  "at": "2026-11-13",
  "sig": {
-  "data/circular_deals.csv": "bffc5da4a408",
-  "data/entities.csv": "72f9cb11a9e3",
+  "data/circular_deals.csv": "2e86682bac7e",
+  "data/entities.csv": "523bf2c1820f",
   "data/headline_vs_actual.csv": "de34b6ab402c",
   "data/revenue.csv": "ab4a26a61b86",
   "data/sources/bis_bulletin137_data.xlsx": "9c2942b2bb72",
